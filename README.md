@@ -20,26 +20,56 @@ Fully automated CheckMK deployment and configuration using Ansible.
 
 ## Quick Start
 
-### 1. Clone Repository
+### Prerequisites Checklist
+
+Before starting, ensure you have:
+- ✅ A VM or server running **Ubuntu 22.04 LTS** for the CheckMK server
+- ✅ Additional VMs/servers running **Ubuntu 22.04 LTS** for monitored hosts
+- ✅ **SSH access** (root or sudo user) to all hosts
+- ✅ **Ansible installed** on your control node
+- ✅ Network connectivity between all hosts
+
+**Example VM Specifications for CheckMK Server:**
+- **Minimum:** 2 vCPU, 4GB RAM, 20GB disk
+- **Recommended:** 4 vCPU, 8GB RAM, 50GB disk (for larger deployments)
+- **OS:** Ubuntu 22.04 LTS (Server)
+- **Networking:** Static IP address recommended
+
+### 1. Prepare Your Environment
+
+**On your Ansible control node** (can be your workstation or a dedicated server):
 ```bash
+# Install Ansible if not already installed
+sudo apt update
+sudo apt install ansible -y
+
+# Clone this repository
 git clone https://github.com/Dubzyy/ansible-checkmk-playbooks.git
 cd ansible-checkmk-playbooks
 ```
 
 ### 2. Configure Inventory
+
+Create your inventory file with your actual VM/server IP addresses:
 ```bash
 cp examples/inventory.example inventory/hosts
 nano inventory/hosts
 ```
 
-Example inventory:
+Update with your hosts:
 ```ini
 [checkmk]
 checkmk-server ansible_host=10.10.1.18 ansible_user=root
 
 [monitored_hosts]
-webserver01 ansible_host=10.10.1.10
-dbserver01 ansible_host=10.10.1.11
+webserver01 ansible_host=10.10.1.10 ansible_user=root
+dbserver01 ansible_host=10.10.1.11 ansible_user=root
+appserver01 ansible_host=10.10.1.12 ansible_user=root
+```
+
+**Test connectivity:**
+```bash
+ansible all -i inventory/hosts -m ping
 ```
 
 ### 3. Create Vault for Admin Password
@@ -48,19 +78,23 @@ mkdir -p group_vars/all
 ansible-vault create group_vars/all/vault.yml
 ```
 
-Add to vault (we'll add the automation password later):
+Add to vault (automation password comes later):
 ```yaml
 ---
 vault_checkmk_admin_password: "YourSecureAdminPassword"
 ```
 
 ### 4. Deploy CheckMK Server
+
+This will install CheckMK on the VM you specified in the `[checkmk]` group:
 ```bash
 ansible-playbook checkmk-deploy.yml -i inventory/hosts --ask-vault-pass
 ```
 
-Access CheckMK at `http://YOUR_SERVER_IP/monitoring/`  
-Login: `cmkadmin` / `[your vault password]`
+**Deployment takes 5-10 minutes.** After completion:
+- Access CheckMK web UI at `http://YOUR_SERVER_IP/monitoring/`
+- Login with username: `cmkadmin`
+- Password: `[the password you set in vault]`
 
 ### 5. Get Automation Secret and Add to Vault
 
@@ -70,7 +104,7 @@ ssh root@YOUR_CHECKMK_SERVER
 cat /omd/sites/monitoring/var/check_mk/web/automation/automation.secret
 ```
 
-Add it to your vault:
+Copy the secret and add it to your vault:
 ```bash
 ansible-vault edit group_vars/all/vault.yml
 ```
@@ -80,7 +114,9 @@ Add this line:
 vault_checkmk_automation_password: "paste-the-secret-here"
 ```
 
-### 6. Install Agents on Hosts
+### 6. Install Agents on Monitored Hosts
+
+This installs the CheckMK agent on all servers in your `[monitored_hosts]` group:
 ```bash
 ansible-playbook checkmk-install-agents.yml -i inventory/hosts \
   -e checkmk_server_ip=10.10.1.18 \
@@ -90,16 +126,17 @@ ansible-playbook checkmk-install-agents.yml -i inventory/hosts \
 
 ### 7. Add Hosts to Monitoring
 
-Edit the playbook to add your hosts:
+Edit the API playbook to define which hosts to monitor:
 ```bash
 nano checkmk-add-hosts-api.yml
 ```
 
-Add your hosts:
+Update the `monitored_hosts` list:
 ```yaml
 monitored_hosts:
   - { name: "webserver01", ip: "10.10.1.10" }
   - { name: "dbserver01", ip: "10.10.1.11" }
+  - { name: "appserver01", ip: "10.10.1.12" }
 ```
 
 Run:
@@ -109,6 +146,8 @@ ansible-playbook checkmk-add-hosts-api.yml \
   -e checkmk_site_name=monitoring \
   --ask-vault-pass
 ```
+
+**Done!** Check your CheckMK dashboard to see all monitored hosts and services.
 
 ## Playbook Reference
 
