@@ -1,0 +1,10 @@
+[checkmk]
+checkmk-server ansible_host=YOUR_CHECKMK_IP ansible_user=root
+
+[monitored_hosts]
+webserver01 ansible_host=10.0.1.10 ansible_user=root
+dbserver01 ansible_host=10.0.1.11 ansible_user=root
+appserver01 ansible_host=10.0.1.12 ansible_user=root
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3

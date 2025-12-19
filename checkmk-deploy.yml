@@ -1,0 +1,125 @@
+---
+- name: Deploy CheckMK Monitoring Server
+  hosts: checkmk
+  become: yes
+  
+  vars:
+    checkmk_version: "2.2.0p17"
+    checkmk_site_name: "monitoring"
+    checkmk_admin_password: "{{ vault_checkmk_admin_password }}"
+    checkmk_force_password_reset: false
+    
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+    
+    - name: Install required dependencies
+      apt:
+        name:
+          - wget
+          - curl
+          - apache2
+          - libapache2-mod-fcgid
+          - python3-pip
+          - expect
+          - apache2-utils
+        state: present
+    
+    - name: Download CheckMK Raw Edition package
+      get_url:
+        url: "https://download.checkmk.com/checkmk/{{ checkmk_version }}/check-mk-raw-{{ checkmk_version }}_0.jammy_amd64.deb"
+        dest: "/tmp/checkmk.deb"
+        mode: '0644'
+    
+    - name: Install CheckMK package
+      apt:
+        deb: "/tmp/checkmk.deb"
+        state: present
+    
+    - name: Check if site already exists
+      stat:
+        path: "/omd/sites/{{ checkmk_site_name }}"
+      register: site_exists
+    
+    - name: Create CheckMK monitoring site
+      command: "omd create {{ checkmk_site_name }}"
+      when: not site_exists.stat.exists
+      register: site_creation
+    
+    - name: Create expect script for password setting
+      copy:
+        content: |
+          #!/usr/bin/expect -f
+          set timeout 10
+          spawn su - {{ checkmk_site_name }} -c "cmk-passwd cmkadmin"
+          expect "New password:"
+          send "{{ checkmk_admin_password }}\r"
+          expect "Re-type new password:"
+          send "{{ checkmk_admin_password }}\r"
+          expect eof
+        dest: "/tmp/set_cmk_pass.exp"
+        mode: '0700'
+      when: site_creation.changed or (checkmk_force_password_reset | bool)
+      no_log: true
+    
+    - name: Set admin password using expect
+      command: "/tmp/set_cmk_pass.exp"
+      when: site_creation.changed or (checkmk_force_password_reset | bool)
+      no_log: true
+    
+    - name: Remove expect script
+      file:
+        path: "/tmp/set_cmk_pass.exp"
+        state: absent
+      when: site_creation.changed or (checkmk_force_password_reset | bool)
+    
+    - name: Enable CheckMK site autostart
+      command: "omd config {{ checkmk_site_name }} set AUTOSTART on"
+      register: autostart_result
+      changed_when: "'Already' not in autostart_result.stdout"
+      failed_when: false
+    
+    - name: Check site status
+      command: "omd status {{ checkmk_site_name }}"
+      register: site_status
+      changed_when: false
+      failed_when: false
+    
+    - name: Start site if stopped
+      command: "omd start {{ checkmk_site_name }}"
+      when: "'Overall state:  stopped' in site_status.stdout"
+      register: site_start
+    
+    - name: Restart site if some services are down
+      command: "omd restart {{ checkmk_site_name }}"
+      when: 
+        - "'Overall state:  stopped' not in site_status.stdout"
+        - "'stopped' in site_status.stdout"
+      register: site_restart
+    
+    - name: Wait for services to start
+      pause:
+        seconds: 5
+      when: site_start.changed or site_restart.changed
+    
+    - name: Verify final site status
+      command: "omd status {{ checkmk_site_name }}"
+      register: final_status
+      changed_when: false
+      failed_when: false
+    
+    - name: Display final site status
+      debug:
+        var: final_status.stdout_lines
+    
+    - name: Display access information
+      debug:
+        msg:
+          - "============================================"
+          - "CheckMK Installation Complete!"
+          - "============================================"
+          - "Web UI: http://{{ ansible_host }}/{{ checkmk_site_name }}/"
+          - "Username: cmkadmin"
+          - "Password: [stored in vault]"

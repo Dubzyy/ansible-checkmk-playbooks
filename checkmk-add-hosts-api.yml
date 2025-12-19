@@ -1,0 +1,74 @@
+---
+- name: Add Hosts to CheckMK via REST API
+  hosts: localhost
+  gather_facts: no
+  
+  vars:
+    checkmk_url: "http://{{ checkmk_server_ip }}/{{ checkmk_site_name }}"
+    checkmk_user: "automation"
+    checkmk_password: "{{ vault_checkmk_automation_password }}"
+    
+    # Define your hosts here or load from inventory
+    monitored_hosts: []
+  
+  tasks:
+    - name: Create hosts via REST API
+      uri:
+        url: "{{ checkmk_url }}/check_mk/api/1.0/domain-types/host_config/collections/all"
+        method: POST
+        user: "{{ checkmk_user }}"
+        password: "{{ checkmk_password }}"
+        force_basic_auth: yes
+        body_format: json
+        headers:
+          Accept: "application/json"
+        body:
+          folder: "/"
+          host_name: "{{ item.name }}"
+          attributes:
+            ipaddress: "{{ item.ip }}"
+        status_code: [200, 400]
+      loop: "{{ monitored_hosts }}"
+      register: create_result
+    
+    - name: Trigger service discovery for all hosts
+      uri:
+        url: "{{ checkmk_url }}/check_mk/api/1.0/domain-types/service_discovery_run/actions/start/invoke"
+        method: POST
+        user: "{{ checkmk_user }}"
+        password: "{{ checkmk_password }}"
+        force_basic_auth: yes
+        body_format: json
+        headers:
+          Accept: "application/json"
+        body:
+          host_name: "{{ item.name }}"
+          mode: "fix_all"
+        status_code: [200, 400]
+      loop: "{{ monitored_hosts }}"
+      register: discovery_result
+    
+    - name: Activate changes
+      uri:
+        url: "{{ checkmk_url }}/check_mk/api/1.0/domain-types/activation_run/actions/activate-changes/invoke"
+        method: POST
+        user: "{{ checkmk_user }}"
+        password: "{{ checkmk_password }}"
+        force_basic_auth: yes
+        body_format: json
+        headers:
+          Accept: "application/json"
+          If-Match: "*"
+        body:
+          sites: ["{{ checkmk_site_name }}"]
+          force_foreign_changes: true
+        status_code: [200, 204]
+      register: activate_result
+    
+    - name: Display results
+      debug:
+        msg:
+          - "============================================"
+          - "Hosts added to CheckMK via REST API"
+          - "============================================"
+          - "Check: {{ checkmk_url }}"

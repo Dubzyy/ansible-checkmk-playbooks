@@ -1,0 +1,9 @@
+---
+# Copy this file to group_vars/all/vault.yml and encrypt with:
+# ansible-vault encrypt group_vars/all/vault.yml
+
+# Admin password for CheckMK web interface
+vault_checkmk_admin_password: "ChangeMe123!"
+
+# Automation user password (get from /omd/sites/SITENAME/var/check_mk/web/automation/automation.secret)
+vault_checkmk_automation_password: "your-automation-secret-here"

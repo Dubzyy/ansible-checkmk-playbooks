@@ -1,0 +1,35 @@
+---
+- name: Install CheckMK Agents on Target Hosts
+  hosts: "{{ target_group | default('monitored_hosts') }}"
+  become: yes
+
+  vars:
+    checkmk_server: "{{ checkmk_server_ip }}"
+    checkmk_site: "{{ checkmk_site_name }}"
+    checkmk_version: "2.2.0p17"
+
+  tasks:
+    - name: Download CheckMK agent
+      get_url:
+        url: "http://{{ checkmk_server }}/{{ checkmk_site }}/check_mk/agents/check-mk-agent_{{ checkmk_version }}-1_all.deb"
+        dest: "/tmp/check-mk-agent.deb"
+        mode: '0644'
+
+    - name: Install CheckMK agent
+      apt:
+        deb: "/tmp/check-mk-agent.deb"
+        state: present
+
+    - name: Enable and start check-mk-agent socket
+      systemd:
+        name: check-mk-agent.socket
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Ensure xinetd is stopped and disabled (conflicts with systemd agent)
+      systemd:
+        name: xinetd
+        state: stopped
+        enabled: no
+      failed_when: false

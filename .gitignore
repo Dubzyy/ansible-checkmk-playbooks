@@ -1,0 +1,11 @@
+# Ansible
+*.retry
+group_vars/*/vault.yml
+host_vars/*/vault.yml
+vault_pass.txt
+
+# Site-specific
+inventory/hosts
+*.secret
+*.pem
+*.key
