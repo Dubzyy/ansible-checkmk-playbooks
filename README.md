@@ -291,7 +291,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## Author
 
 **Hunter Wilson**  
-- GitHub: [@YOUR_USERNAME](https://github.com/YOUR_USERNAME)
+- GitHub: [@Dubzyy](https://github.com/Dubzyy)
 - Website: [vrhost.org](https://vrhost.org)
 
 ## Acknowledgments
