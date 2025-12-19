@@ -22,7 +22,7 @@ Fully automated CheckMK deployment and configuration using Ansible.
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/ansible-checkmk-playbooks.git
+git clone https://github.com/Dubzyy/ansible-checkmk-playbooks.git
 cd ansible-checkmk-playbooks
 ```
 
@@ -42,17 +42,16 @@ webserver01 ansible_host=10.10.1.10
 dbserver01 ansible_host=10.10.1.11
 ```
 
-### 3. Create Vault for Secrets
+### 3. Create Vault for Admin Password
 ```bash
 mkdir -p group_vars/all
 ansible-vault create group_vars/all/vault.yml
 ```
 
-Add to vault:
+Add to vault (we'll add the automation password later):
 ```yaml
 ---
 vault_checkmk_admin_password: "YourSecureAdminPassword"
-vault_checkmk_automation_password: "YourAutomationSecret"
 ```
 
 ### 4. Deploy CheckMK Server
@@ -63,7 +62,25 @@ ansible-playbook checkmk-deploy.yml -i inventory/hosts --ask-vault-pass
 Access CheckMK at `http://YOUR_SERVER_IP/monitoring/`  
 Login: `cmkadmin` / `[your vault password]`
 
-### 5. Install Agents on Hosts
+### 5. Get Automation Secret and Add to Vault
+
+After CheckMK is deployed, retrieve the automation password:
+```bash
+ssh root@YOUR_CHECKMK_SERVER
+cat /omd/sites/monitoring/var/check_mk/web/automation/automation.secret
+```
+
+Add it to your vault:
+```bash
+ansible-vault edit group_vars/all/vault.yml
+```
+
+Add this line:
+```yaml
+vault_checkmk_automation_password: "paste-the-secret-here"
+```
+
+### 6. Install Agents on Hosts
 ```bash
 ansible-playbook checkmk-install-agents.yml -i inventory/hosts \
   -e checkmk_server_ip=10.10.1.18 \
@@ -71,9 +88,9 @@ ansible-playbook checkmk-install-agents.yml -i inventory/hosts \
   -e target_group=monitored_hosts
 ```
 
-### 6. Add Hosts to Monitoring
+### 7. Add Hosts to Monitoring
 
-Method 1 - Edit playbook:
+Edit the playbook to add your hosts:
 ```bash
 nano checkmk-add-hosts-api.yml
 ```
